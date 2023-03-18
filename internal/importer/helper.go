@@ -1,14 +1,6 @@
 package importer
 
 import (
-	"strings"
-
-	"github.com/miniclip/gonsul/internal/entities"
-	"github.com/miniclip/gonsul/internal/util"
-
-	"github.com/cbroglie/mustache"
-	"github.com/olekukonko/tablewriter"
-
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -18,6 +10,15 @@ import (
 	"os"
 	"path"
 	"strconv"
+	"strings"
+
+	"github.com/google/go-cmp/cmp"
+
+	"github.com/miniclip/gonsul/internal/entities"
+	"github.com/miniclip/gonsul/internal/util"
+
+	"github.com/cbroglie/mustache"
+	"github.com/olekukonko/tablewriter"
 )
 
 // createOperationMatrix ...
@@ -49,12 +50,22 @@ func (i *importer) createOperationMatrix(liveData map[string]string, localData m
 		if liveVal, ok := liveData[localKey]; ok {
 			// it does, is it different value?
 			if localValB64 != liveVal {
+				// Get the diff
+				liveValRaw, err := base64.StdEncoding.DecodeString(liveVal)
+				if err != nil {
+					i.logger.PrintError(fmt.Sprintf("Could not decode live value: %s", err))
+				}
+				diff := cmp.Diff(string(liveValRaw), localVal)
+				if len(diff) > 297 {
+					diff = diff[:297] + "..."
+				}
 				// Gentleman we have an update
-				operations.AddUpdate(entities.Entry{KVPath: localKey, Value: localValB64})
+				operations.AddUpdate(entities.Entry{KVPath: localKey, Value: localValB64}, diff)
 			}
 		} else {
 			// Current key does not exist in live data, we have an insert
-			operations.AddInsert(entities.Entry{KVPath: localKey, Value: localValB64})
+			diff := cmp.Diff("", localVal)
+			operations.AddInsert(entities.Entry{KVPath: localKey, Value: localValB64}, diff)
 		}
 	}
 
@@ -148,9 +159,30 @@ func (i *importer) printOperations(matrix entities.OperationMatrix, printWhat st
 	if matrix.GetTotalOps() > 0 {
 		// Instantiate our table and set table header
 		table := tablewriter.NewWriter(os.Stdout)
-		table.SetHeader([]string{"", "BATCH", "OP INDEX", "OPERATION NAME", "CONSUL VERB", "PATH"})
+		table.SetHeader([]string{"", "BATCH", "OP INDEX", "OPERATION NAME", "CONSUL VERB", "PATH", "DIFF"})
 		// Align our rows
+		// table.SetAlignment(tablewriter.ALIGN_LEFT)
+
+		// table.SetAutoWrapText(false)
+		// table.SetAutoFormatHeaders(true)
+		// table.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
+		// table.SetAlignment(tablewriter.ALIGN_LEFT)
+		// table.SetCenterSeparator("-")
+		// table.SetColumnSeparator("")
+		// table.SetHeaderLine(true)
+		// table.SetBorder(true)
+		// table.SetReflowDuringAutoWrap(false)
+
+		table.SetAutoWrapText(false)
+		table.SetAutoFormatHeaders(true)
+		table.SetHeaderAlignment(tablewriter.ALIGN_LEFT)
 		table.SetAlignment(tablewriter.ALIGN_LEFT)
+		table.SetCenterSeparator("-")
+		table.SetColumnSeparator("")
+		table.SetHeaderLine(true)
+		table.SetBorder(true)
+		table.SetTablePadding("\t") // pad with tabs
+		table.SetNoWhiteSpace(true)
 
 		// Initialize the batch counter
 		batch := 1
@@ -195,7 +227,7 @@ func (i *importer) printOperations(matrix entities.OperationMatrix, printWhat st
 
 				transactions = append(transactions, entities.ConsulTxn{KV: TxnKV})
 
-				table.Append([]string{warning, strconv.Itoa(batch), strconv.Itoa(opIndex), op.GetType(), op.GetVerb(), op.GetPath()})
+				table.Append([]string{warning, strconv.Itoa(batch), strconv.Itoa(opIndex), op.GetType(), op.GetVerb(), op.GetPath(), op.GetDiff()})
 
 				opIndex++
 			}

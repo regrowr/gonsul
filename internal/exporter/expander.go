@@ -1,6 +1,7 @@
 package exporter
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
 )
@@ -33,8 +34,16 @@ func (e *exporter) traverseMap(path string, arbitraryJSON map[string]interface{}
 
 		case []interface{}:
 			// We have an array - ohoh
-			// Array inside consul are... well are not! Insert as string for now
-			piece := e.createPiece(newPath, fmt.Sprint(value.([]interface{})))
+			// Array inside consul are... well are not!
+			// Attempt to insert as the json-encoded string
+			// piece := e.createPiece(newPath, fmt.Sprint(value.([]interface{})))
+			b, err := json.MarshalIndent(value, "", "  ")
+			if err != nil {
+				// default to the original way of doing things - not great!
+				b = []byte(fmt.Sprint(value))
+			}
+
+			piece := e.createPiece(newPath, fmt.Sprint(string(b)))
 			localData[piece.KVPath] = piece.Value
 
 		case map[string]interface{}:

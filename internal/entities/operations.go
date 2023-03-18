@@ -9,6 +9,7 @@ const OperationAll = "ALL"
 type operation struct {
 	opType string
 	entry  Entry
+	diff   string
 }
 
 // Our operations matrix
@@ -49,20 +50,25 @@ func (op *operation) GetValue() string {
 	return op.entry.Value
 }
 
+// GetDiff ...
+func (op *operation) GetDiff() string {
+	return op.diff
+}
+
 // AddInsert ...
-func (matrix *OperationMatrix) AddInsert(entry Entry) {
+func (matrix *OperationMatrix) AddInsert(entry Entry, diff string) {
 	// Increment our total number of operations
 	matrix.total++
 	matrix.inserts++
-	matrix.operations = append(matrix.operations, operation{opType: OperationInsert, entry: entry})
+	matrix.operations = append(matrix.operations, operation{opType: OperationInsert, entry: entry, diff: diff})
 }
 
 // AddUpdate ...
-func (matrix *OperationMatrix) AddUpdate(entry Entry) {
+func (matrix *OperationMatrix) AddUpdate(entry Entry, diff string) {
 	// Increment our total number of operations
 	matrix.total++
 	matrix.updates++
-	matrix.operations = append(matrix.operations, operation{opType: OperationUpdate, entry: entry})
+	matrix.operations = append(matrix.operations, operation{opType: OperationUpdate, entry: entry, diff: diff})
 }
 
 // AddDelete ...
