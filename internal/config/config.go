@@ -1,14 +1,15 @@
 package config
 
 import (
-	"github.com/miniclip/gonsul/internal/util"
-
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"strings"
+
+	"github.com/miniclip/gonsul/internal/util"
+
 	"github.com/namsral/flag"
 )
 
@@ -42,6 +43,7 @@ type config struct {
 	keepFileExt     bool
 	timeout         int
 	version         bool
+	doNotDeleteKeys map[string]interface{}
 }
 
 // IConfig is our config interface, implemented by our config struct above. It allows
@@ -71,6 +73,7 @@ type IConfig interface {
 	KeepFileExt() bool
 	GetTimeout() int
 	IsShowVersion() bool
+	CanDelete(key string) bool
 }
 
 // NewConfig is our config struct constructor.
@@ -87,6 +90,7 @@ func buildConfig(flags ConfigFlags) (*config, error) {
 	var err error
 	var clone = true
 	var doSecrets = false
+	var doNotDelete map[string]interface{}
 
 	// If we were passed a -v (version) flag, nothing else matters
 	if *flags.Version {
@@ -141,6 +145,14 @@ func buildConfig(flags ConfigFlags) (*config, error) {
 		doSecrets = true
 	}
 
+	// Should we build a do-not-delete map to avoid deleting some keys
+	if *flags.DoNotDeleteFile != "" {
+		doNotDelete, err = buildDoNotDelete(*flags.DoNotDeleteFile, *flags.RepoRootDir)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	return &config{
 		shouldClone:     clone,
 		logLevel:        errorLevel,
@@ -166,6 +178,7 @@ func buildConfig(flags ConfigFlags) (*config, error) {
 		keepFileExt:     *flags.KeepFileExt,
 		timeout:         *flags.Timeout,
 		version:         *flags.Version,
+		doNotDeleteKeys: doNotDelete,
 	}, nil
 }
 
@@ -265,10 +278,19 @@ func (config *config) IsShowVersion() bool {
 	return config.version
 }
 
+func (config *config) CanDelete(key string) bool {
+	// Is this key protected from delete?
+	// NOTE: assumes that the key has no basePath i.e. <key> only so we strip it off
+	splitKey := strings.Split(key, "/")
+	keyOnly := splitKey[len(splitKey)-1]
+	_, ok := config.doNotDeleteKeys[keyOnly]
+	return !ok
+}
+
 func buildSecretsMap(secretsFile string, repoRootPath string) (map[string]string, error) {
 	var file = secretsFile
 	if _, err := os.Stat(file); os.IsNotExist(err) {
-		// The file path as is is not a valid file, let's try concatenate it with base path
+		// The file path as is, is not a valid file, let's try to concatenate it with base path
 		file = repoRootPath + "/" + secretsFile
 		if _, err := os.Stat(file); os.IsNotExist(err) {
 			// Provided file nowhere to be seen
@@ -307,4 +329,36 @@ func setValidExtensions(validExtensions string) ([]string, error) {
 	}
 
 	return extensionsArr, nil
+}
+
+func buildDoNotDelete(doNotDeleteFile string, repoRootPath string) (map[string]interface{}, error) {
+	var file = doNotDeleteFile
+	if _, err := os.Stat(file); os.IsNotExist(err) {
+		// The file path as is, is not a valid file, let's try to concatenate it with base path
+		file = repoRootPath + "/" + doNotDeleteFile
+		if _, err := os.Stat(file); os.IsNotExist(err) {
+			// Provided file nowhere to be seen
+			return nil, errors.New(fmt.Sprintf("the provided do not delete file (%s) cannot be found", doNotDeleteFile))
+		}
+	}
+
+	// we're still here, we got a file, open it, try to parse JSON and return our map
+	content, err := ioutil.ReadFile(file) // just pass the file name
+	if err != nil {
+		return nil, errors.New(fmt.Sprintf("could not open do not delete file (%s). Error message: %s", doNotDeleteFile, err.Error()))
+	}
+
+	var doNotDelete []string
+	err = json.Unmarshal([]byte(content), &doNotDelete)
+	if err != nil {
+		return nil, errors.New(fmt.Sprintf("could not parse do not delete JSON file (%s). Error message: %s", doNotDeleteFile, err.Error()))
+	}
+
+	// Create a lookup map
+	doNotDeleteMap := make(map[string]interface{})
+	for _, key := range doNotDelete {
+		doNotDeleteMap[key] = nil
+	}
+
+	return doNotDeleteMap, nil
 }

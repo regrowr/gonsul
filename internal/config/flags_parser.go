@@ -3,8 +3,10 @@ package config
 import (
 	"fmt"
 	"os"
-	"github.com/miniclip/gonsul/internal/util"
+
 	"github.com/namsral/flag"
+
+	"github.com/miniclip/gonsul/internal/util"
 )
 
 type ConfigFlags struct {
@@ -29,6 +31,7 @@ type ConfigFlags struct {
 	KeepFileExt     *bool
 	Timeout         *int
 	Version         *bool
+	DoNotDeleteFile *string
 }
 
 func parseFlags() ConfigFlags {
@@ -59,6 +62,7 @@ func parseFlags() ConfigFlags {
 	flags.KeepFileExt = flag.Bool("keep-ext", false, "Do we want to keep file name extensions ? (If not set to true defaults by ommiting the file name extension.) (Default false)")
 	flags.Timeout = flag.Int("timeout", 5, "The number of seconds for the client to wait for a response from Consul")
 	flags.Version = flag.Bool("v", false, "Will show the Gonsul version")
+	flags.DoNotDeleteFile = flag.String("do-not-delete-file", "", "A key array json file with a list of keys that MUST not be deleted.")
 
 	// Parse our command line flags
 	flag.Parse()
