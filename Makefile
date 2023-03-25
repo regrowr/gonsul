@@ -59,3 +59,10 @@ else
 	@echo "Not executing Markdown linting: 'markdownlint' (https://github.com/DavidAnson/markdownlint) not available"
 endif
 .PHONY: markdownlint
+
+releases: test
+	@echo "=== Creating releases ==="
+	rm -rf ./releases
+	./scripts/build-releases.sh
+	ls -tl releases
+	@echo "=== Done ==="
